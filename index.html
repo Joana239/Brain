@@ -187,7 +187,7 @@ const dow = k => P(k).getDay();
 const short = k => `${WD[dow(k)]} ${P(k).getDate()}.${pad(P(k).getMonth() + 1)}.`;
 const longDate = k => `${WDL[dow(k)]}, ${P(k).getDate()}. ${MON[P(k).getMonth()]}`;
 const fmt = n => { const r = Math.round(n * 10) / 10; return Number.isInteger(r) ? String(r) : String(r).replace(".", ","); };
-const num = v => { if (v === "" || v == null) return null; const n = parseFloat(String(v).replace(",", ".")); return isNaN(n) ? null : n; };
+const num = v => { if (v === "" || v == null) return null; const n = parseFloat(String(v).replace(/\s/g, "").replace(/[−–]/g, "-").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".")); return isNaN(n) ? null : n; };
 const lc = s => String(s || "").toLowerCase();
 const firstName = () => { const e = S.user?.email || ""; const p = e.split("@")[0].split(/[._-]/)[0]; return p ? p[0].toUpperCase() + p.slice(1) : ""; };
 
@@ -1131,11 +1131,16 @@ function vPrivat() {
 </div>`;
 }
 function sMonth() {
-  const F = S.ui.f; const ms = months(); const last = ms[ms.length - 1]; const sug = partnerSuggestion(last);
+  const F = S.ui.f; const ms = months(); const last = ms[ms.length - 1]; const sug = partnerSuggestion(F.editing ? ms[ms.length - 2] : last);
+  const hasBase = F.baseInv != null; const total = hasBase ? (Number(F.baseInv) || 0) + (num(F.deposit) || 0) : null;
+  const field = (k, l) => `<label class="fl">${esc(l)}<input id="fm_${k}" type="text" inputmode="decimal" data-bind="f.${k}" value="${esc(F[k] ?? "")}"></label>`;
+  const rows = ACC.map(([k, l]) => {
+    if (k === "investiert") return hasBase ? `<label class="fl">Diesen Monat eingezahlt<input id="fm_dep" type="text" inputmode="decimal" data-bind="f.deposit" data-live="1" value="${esc(F.deposit ?? "")}"></label><span class="muted">Insgesamt eingezahlt: <b>${eur(total)}</b> (bisher ${eur(Number(F.baseInv) || 0)})</span>` : field(k, "Insgesamt eingezahlt");
+    if (k === "partner") return `<label class="fl">${esc(accLabel(k, l))}<div class="addrow"><input id="fm_${k}" type="text" inputmode="decimal" data-bind="f.${k}" value="${esc(F[k] ?? "")}"><button class="sq" style="background:var(--anth);width:auto;flex:0 0 auto;padding:0 14px;font-size:15px" data-a="flipSign" aria-label="Vorzeichen wechseln">+/−</button></div></label><span class="muted">Was du ihm schuldest, steht mit Minus davor. Mit „+/−“ wechselst du das Vorzeichen.</span>${sug != null ? `<span class="muted">Vorschlag aus euren Ein- und Ausgaben: <b>${eur(sug)}</b> <button class="link" data-a="useSug" data-v="${sug.toFixed(2)}">übernehmen</button></span>` : ""}`;
+    return field(k, accLabel(k, l));
+  }).join("");
   return `<div class="head"><h2 style="font-size:18px">Monats-Check</h2><button class="link" data-a="closeSheet">Abbrechen</button></div>
-  <div class="card"><label class="fl">Stichtag<input id="fmDate" type="date" data-bind="f.date" value="${esc(F.date || "")}"></label>
-  ${ACC.map(([k, l]) => `<label class="fl">${esc(accLabel(k, l))}<input id="fm_${k}" type="text" inputmode="decimal" data-bind="f.${k}" value="${esc(F[k] ?? "")}"></label>${k === "partner" && sug != null ? `<span class="muted">Vorschlag aus euren Ein- und Ausgaben seit dem letzten Check: <b>${eur(sug)}</b> <button class="link" data-a="useSug" data-v="${sug.toFixed(2)}">übernehmen</button></span>` : ""}`).join("")}
-  </div>
+  <div class="card"><label class="fl">Stichtag<input id="fmDate" type="date" data-bind="f.date" value="${esc(F.date || "")}"></label>${rows}</div>
   <button class="btn" style="background:var(--anth)" data-a="saveMonth">Speichern</button>`;
 }
 async function sha(s) { const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join(""); }
@@ -1255,13 +1260,26 @@ Object.assign(A, {
   chartAll() { S.ui.chartAll = !S.ui.chartAll; render(); },
   monthCheck() {
     const ms = months(); const last = ms[ms.length - 1] || {};
-    S.ui.f = { date: last.date && last.date >= lastFifteenth() ? last.date : lastFifteenth() }; ACC.forEach(([k]) => S.ui.f[k] = last[k] != null ? String(last[k]).replace(".", ",") : "");
+    const editing = !!(last.date && last.date >= lastFifteenth());
+    const base = editing ? ms[ms.length - 2] : ms[ms.length - 1];
+    const fmtv = v => v != null ? String(Math.round(Number(v) * 100) / 100).replace(".", ",") : "";
+    S.ui.f = { date: editing ? last.date : lastFifteenth(), editing };
+    ACC.forEach(([k]) => S.ui.f[k] = fmtv(last[k]));
+    if (base) {
+      S.ui.f.baseInv = Number(base.investiert) || 0;
+      let dep;
+      if (editing) dep = last.deposit != null ? last.deposit : (Number(last.investiert) || 0) - (Number(base.investiert) || 0);
+      else { const pb = ms[ms.length - 2]; dep = last.deposit != null ? last.deposit : pb ? (Number(last.investiert) || 0) - (Number(pb.investiert) || 0) : 0; }
+      S.ui.f.deposit = fmtv(Math.max(0, dep));
+    }
     S.ui.sheet = { type: "month" }; render();
   },
+  flipSign() { const v = String(S.ui.f.partner ?? "").trim().replace(/^[−–]/, "-"); S.ui.f.partner = v.startsWith("-") ? v.slice(1) : "-" + v; render(); },
   useSug(d) { S.ui.f.partner = d.v.replace(".", ","); render(); },
   async saveMonth() {
     const F = S.ui.f; if (!F.date) return toast("Bitte einen Stichtag wählen");
     const data = { date: F.date }; ACC.forEach(([k]) => data[k] = num(F[k]) ?? 0);
+    if (F.baseInv != null) { const dep = num(F.deposit) ?? 0; data.deposit = dep; data.investiert = Math.round(((Number(F.baseInv) || 0) + dep) * 100) / 100; }
     await setDoc(doc(db, `users/${me()}/finance/${F.date}`), data); S.ui.sheet = null; toast("Monat gespeichert");
   },
   finishShop() { A.clearDone(); S.tab = "geld"; S.ui.geldMode = "gemeinsam"; S.ui.mf = { type: "out" }; render(); scrollTo(0, 0); }
@@ -1430,6 +1448,7 @@ async function exportFinXlsx() {
     X.utils.sheet_add_aoa(ws, [vals], { origin: `A${r}`, cellDates: true });
     ws[`I${r}`] = { t: "n", v: sumOf(m), f: `B${r}+C${r}+D${r}+F${r}+G${r}+H${r}` };
     ws[`J${r}`] = { t: "n", v: exR(m), f: `I${r}-(D${r}-E${r})` };
+    if (i > 0 && m.deposit != null) ws[`E${r}`] = { t: "n", v: Number(m.investiert) || 0, f: `E${r - 1}+${m.deposit}` };
     if (i > 0) { ws[`K${r}`] = { t: "n", v: sumOf(m) - sumOf(ms[i - 1]), f: `I${r}-I${r - 1}` }; ws[`L${r}`] = { t: "n", v: exR(m) - exR(ms[i - 1]), f: `J${r}-J${r - 1}` }; }
   });
   ws["!ref"] = `A1:L${ms.length + 1}`; ws["!cols"] = [{ wch: 12 }, ...Array(11).fill({ wch: 12 })];
