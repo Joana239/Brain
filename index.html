@@ -1123,6 +1123,7 @@ function vPrivat() {
   <div class="grid2"><div class="card" style="gap:4px"><span class="muted" style="font-weight:800">Depot</span><span style="font-size:17px;font-weight:800">${S.ui.hide ? "•••" : (dep >= 0 ? "+" : "") + eur(dep)}</span><span class="muted">${Number(last.investiert) ? (dep / Number(last.investiert) * 100).toFixed(1).replace(".", ",") + " % Rendite" : ""}</span></div>
   <div class="card" style="gap:4px"><span class="muted" style="font-weight:800">Hochrechnung</span><span style="font-size:17px;font-weight:800">${money(fv)}</span><span class="muted">in ${esc(calc.years)} Jahren</span></div></div>
   <div class="card"><h2>Hochrechnung einstellen</h2><div class="grid2" style="grid-template-columns:repeat(3,minmax(0,1fr))"><label class="fl">Zins %<input id="cR" type="text" inputmode="decimal" data-bind="calc.rate" data-live="1" value="${esc(calc.rate)}"></label><label class="fl">Rate/Monat<input id="cS" type="text" inputmode="decimal" data-bind="calc.save" data-live="1" value="${esc(calc.save)}"></label><label class="fl">Jahre<input id="cY" type="text" inputmode="numeric" data-bind="calc.years" data-live="1" value="${esc(calc.years)}"></label></div><span class="muted">Ausgehend von deinem aktuellen Vermögen.</span></div>` : ""}
+  ${!due && last ? `<button class="btn ghost" style="border-color:var(--anth);color:var(--anth)" data-a="monthCheck">Monats-Check vom ${short(last.date)} bearbeiten</button>` : ""}
   <div class="grid2"><button class="btn" style="background:var(--anth)" data-a="exportFin">Excel herunterladen</button><button class="btn ghost" style="border-color:var(--anth);color:var(--anth)" data-a="recaps">Recaps</button></div>
   <div class="card"><h2>Aus Excel übernehmen</h2><span class="muted">Wähle deine Finanz-Excel. Brain liest das Blatt „Vermögen“ ein. Die Daten bleiben nur in deinem privaten Bereich.</span>
   <label class="btn ghost" style="display:flex;align-items:center;justify-content:center;border-color:var(--anth);color:var(--anth)">Excel-Datei wählen<input id="xlsIn" type="file" accept=".xlsx,.xls" style="display:none"></label></div>
@@ -1254,7 +1255,7 @@ Object.assign(A, {
   chartAll() { S.ui.chartAll = !S.ui.chartAll; render(); },
   monthCheck() {
     const ms = months(); const last = ms[ms.length - 1] || {};
-    S.ui.f = { date: lastFifteenth() }; ACC.forEach(([k]) => S.ui.f[k] = last[k] != null ? String(last[k]).replace(".", ",") : "");
+    S.ui.f = { date: last.date && last.date >= lastFifteenth() ? last.date : lastFifteenth() }; ACC.forEach(([k]) => S.ui.f[k] = last[k] != null ? String(last[k]).replace(".", ",") : "");
     S.ui.sheet = { type: "month" }; render();
   },
   useSug(d) { S.ui.f.partner = d.v.replace(".", ","); render(); },
