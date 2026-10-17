@@ -977,7 +977,7 @@ function vTodos() {
   const fromMe = S.todos.filter(x => x.from === me() && x.owner !== me()).sort((a, b) => (a.done - b.done) || (b.created - a.created)).slice(0, 8);
   const days = Array.from({ length: 7 }, (_, i) => add(ws, i));
   return `<div class="hero" style="background:var(--lilac);color:var(--tx)">
-  <div style="display:flex;justify-content:space-between;align-items:center"><h1>To-dos</h1><span class="tag" style="background:rgba(255,255,255,.55);color:var(--tx);font-size:12px;padding:5px 10px">${st} ${st === 1 ? "Tag" : "Tage"} am Stück</span></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h1>To-dos</h1><span style="display:flex;align-items:center;gap:8px"><span class="tag" style="background:rgba(255,255,255,.55);color:var(--tx);font-size:12px;padding:5px 10px">${st} ${st === 1 ? "Tag" : "Tage"} am Stück</span><button class="btn small" style="background:var(--lilacD);min-height:44px;padding:0 14px;font-size:14px" data-a="editT" aria-label="Neues To-do">+ Neu</button></span></div>
   <div class="strip">${days.map(k => { const ok = doneOn(k).length >= GOAL; return `<span style="height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;background:${ok ? "#fff" : "rgba(255,255,255,.35)"};color:${ok ? "var(--lilacD)" : "var(--tx)"};${k === t ? "outline:2px solid var(--tx)" : ""}">${WD[dow(k)]}</span>`; }).join("")}</div>
   <span style="font-size:12px;font-weight:700">Heute ${Math.min(done.length, GOAL)} von ${GOAL} fürs Tagesziel</span>
 </div>
@@ -993,7 +993,7 @@ function vTodos() {
   ${goals.length ? `<div class="card"><h2>Langzeit-Ziele</h2>${goals.map(g => { const s = g.steps || []; const d = s.filter(x => x.done).length; const pct = s.length ? Math.round(d / s.length * 100) : 0; return `<button style="border:0;background:none;text-align:left;padding:4px 0;display:flex;flex-direction:column;gap:6px" data-a="editT" data-id="${g.id}"><span style="display:flex;justify-content:space-between;width:100%;font-size:13px;font-weight:700"><span>${esc(g.title)}</span><span class="muted">${d}/${s.length}</span></span><span style="height:8px;border-radius:4px;background:var(--lilacT);display:flex;width:100%"><span style="width:${pct}%;background:var(--lilacD);border-radius:4px"></span></span></button>`; }).join("")}</div>` : ""}
   ${done.length ? `<div class="card flat"><div class="row" style="min-height:40px"><h2>Heute erledigt</h2></div>${done.map(x => `<div class="row" style="min-height:40px"><span style="width:44px;font-size:12px;font-weight:800;color:var(--gr)">${pad(new Date(x.doneAt).getHours())}:${pad(new Date(x.doneAt).getMinutes())}</span><span class="grow"><span class="name" style="font-weight:600">${esc(x.title)}</span></span><button class="link" data-a="undoT" data-id="${x.id}">Zurück</button></div>`).join("")}</div>` : ""}
   ${fromMe.length ? `<div class="card flat"><div class="row" style="min-height:40px"><h2>Von dir für ${esc(partnerName())}</h2></div>${fromMe.map(x => `<div class="row" style="min-height:40px"><span class="grow"><span class="name" style="font-weight:600">${esc(x.title)}</span></span><span class="muted" style="font-weight:700;color:${x.done ? "var(--green)" : "var(--gr)"}">${x.done ? "erledigt" : "offen"}</span><button class="x" data-a="delT" data-id="${x.id}" aria-label="Löschen">×</button></div>`).join("")}</div>` : ""}
-  <div class="grid2"><button class="btn" style="background:var(--lilacD)" data-a="editT">+ To-do</button><button class="btn ghost" style="border-color:var(--lilacD);color:var(--lilacD)" data-a="allT">Alle anzeigen</button></div>
+  <button class="btn ghost" style="border-color:var(--lilacD);color:var(--lilacD)" data-a="allT">Alle To-dos anzeigen</button>
 </div>`;
 }
 function sTodoList() {
@@ -1103,9 +1103,7 @@ function vPrivat() {
   const due = !last || last.date < lastFifteenth();
   const sh = S.ui.chartKey || "sum"; const range = S.ui.chartAll ? ms : ms.slice(-13);
   const dep = last ? (Number(last.depot) || 0) - (Number(last.investiert) || 0) : 0;
-  const calc = S.ui.calc || { rate: "5", save: "500", years: "10" };
-  const r = (num(calc.rate) || 0) / 100 / 12, nM = (num(calc.years) || 0) * 12, pm = num(calc.save) || 0, cap = last ? sumOf(last) : 0;
-  const fv = r ? cap * Math.pow(1 + r, nM) + pm * ((Math.pow(1 + r, nM) - 1) / r) : cap + pm * nM;
+  const pj = projection(ms);
   return geldHead("privat") + `<div class="main">
   <div class="card" style="background:var(--anth);color:#fff">
     <div class="head"><span style="font-size:12px;font-weight:600;opacity:.85">Vermögen${last ? " · Stand " + P(last.date).getDate() + ". " + MON[P(last.date).getMonth()] : ""}</span>
@@ -1121,8 +1119,8 @@ function vPrivat() {
   </div>
   ${last ? `<div class="card flat">${ACC.map(([k, l]) => `<div class="row" style="min-height:42px"><span class="grow"><span class="name">${esc(accLabel(k, l))}</span></span><span style="font-size:14px;font-weight:800">${money(Number(last[k]) || 0)}</span></div>`).join("")}</div>
   <div class="grid2"><div class="card" style="gap:4px"><span class="muted" style="font-weight:800">Depot</span><span style="font-size:17px;font-weight:800">${S.ui.hide ? "•••" : (dep >= 0 ? "+" : "") + eur(dep)}</span><span class="muted">${Number(last.investiert) ? (dep / Number(last.investiert) * 100).toFixed(1).replace(".", ",") + " % Rendite" : ""}</span></div>
-  <div class="card" style="gap:4px"><span class="muted" style="font-weight:800">Hochrechnung</span><span style="font-size:17px;font-weight:800">${money(fv)}</span><span class="muted">in ${esc(calc.years)} Jahren</span></div></div>
-  <div class="card"><h2>Hochrechnung einstellen</h2><div class="grid2" style="grid-template-columns:repeat(3,minmax(0,1fr))"><label class="fl">Zins %<input id="cR" type="text" inputmode="decimal" data-bind="calc.rate" data-live="1" value="${esc(calc.rate)}"></label><label class="fl">Rate/Monat<input id="cS" type="text" inputmode="decimal" data-bind="calc.save" data-live="1" value="${esc(calc.save)}"></label><label class="fl">Jahre<input id="cY" type="text" inputmode="numeric" data-bind="calc.years" data-live="1" value="${esc(calc.years)}"></label></div><span class="muted">Ausgehend von deinem aktuellen Vermögen.</span></div>` : ""}
+  <div class="card" style="gap:4px"><span class="muted" style="font-weight:800">Ø Zuwachs pro Monat</span><span style="font-size:17px;font-weight:800;color:${pj && pj.avg >= 0 ? "var(--greenD)" : "#9A3E31"}">${pj ? (S.ui.hide ? "•••" : signed(pj.avg)) : "–"}</span><span class="muted">aus eigener Kraft</span></div></div>
+  ${pj ? vProjection(pj) : ""}` : ""}
   ${!due && last ? `<button class="btn ghost" style="border-color:var(--anth);color:var(--anth)" data-a="monthCheck">Monats-Check vom ${short(last.date)} bearbeiten</button>` : ""}
   <div class="grid2"><button class="btn" style="background:var(--anth)" data-a="exportFin">Excel herunterladen</button><button class="btn ghost" style="border-color:var(--anth);color:var(--anth)" data-a="recaps">Recaps</button></div>
   <div class="card"><h2>Aus Excel übernehmen</h2><span class="muted">Wähle deine Finanz-Excel. Brain liest das Blatt „Vermögen“ ein. Die Daten bleiben nur in deinem privaten Bereich.</span>
@@ -1472,6 +1470,50 @@ Object.assign(A, {
   recapUnlock() { S.ui.sheet = null; S.tab = "geld"; S.ui.geldMode = "privat"; render(); scrollTo(0, 0); },
   async exportFin() { if (!S.ui.unlocked) return toast("Bitte zuerst im privaten Bereich entsperren"); try { await exportFinXlsx(); } catch (e) { console.error(e); toast("Export hat nicht geklappt. Bist du online?"); } },
   goCheck() { S.tab = "geld"; S.ui.geldMode = "privat"; if (S.ui.unlocked) { render(); A.monthCheck(); } else { S.ui.pendingCheck = true; render(); } scrollTo(0, 0); }
+});
+
+/* ========== Hochrechnung aus dem eigenen Zuwachs ========== */
+function projection(ms) {
+  if (ms.length < 2) return null;
+  const n = Math.min(Number(S.ui.avgN || 6), ms.length - 1);
+  const last = ms[ms.length - 1], base = ms[ms.length - 1 - n];
+  const avg = (exR(last) - exR(base)) / n;
+  return { n, avg, last, start: sumOf(last), ms };
+}
+function addMonths(k, m) { const d = P(k); return K(new Date(d.getFullYear(), d.getMonth() + m, d.getDate())); }
+function vProjection(pj) {
+  const extra = Number(S.ui.extra || 0); const rate = pj.avg + extra;
+  const hist = pj.ms.slice(-12).map(m => ({ k: m.date, v: sumOf(m) }));
+  const fut = Array.from({ length: 13 }, (_, i) => ({ k: addMonths(pj.last.date, i), v: pj.start + rate * i }));
+  const futBase = Array.from({ length: 13 }, (_, i) => pj.start + pj.avg * i);
+  const all = [...hist.map(x => x.v), ...fut.map(x => x.v), ...futBase];
+  const W = 320, H = 130, p = 8; const mn = Math.min(...all), mx = Math.max(...all), rg = mx - mn || 1;
+  const N = hist.length + 12; const X = i => p + i * (W - 2 * p) / (N - 1); const Y = v => p + (mx - v) / rg * (H - 2 * p - 14);
+  const hl = hist.map((x, i) => `${X(i).toFixed(1)},${Y(x.v).toFixed(1)}`).join(" ");
+  const off = hist.length - 1;
+  const fl = fut.map((x, i) => `${X(off + i).toFixed(1)},${Y(x.v).toFixed(1)}`).join(" ");
+  const bl = futBase.map((v, i) => `${X(off + i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
+  const svgC = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Verlauf und Hochrechnung">
+    <polyline points="${hl}" fill="none" stroke="#4A4A50" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    ${extra ? `<polyline points="${bl}" fill="none" stroke="#B3BEAE" stroke-width="2" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>` : ""}
+    <polyline points="${fl}" fill="none" stroke="#677166" stroke-width="2.5" stroke-dasharray="6 5" vector-effect="non-scaling-stroke"/>
+    <line x1="${X(off).toFixed(1)}" x2="${X(off).toFixed(1)}" y1="${p}" y2="${H - 14}" stroke="#D9D5CE" stroke-width="1" vector-effect="non-scaling-stroke"/>
+    <text x="${X(off).toFixed(1)}" y="${H - 2}" text-anchor="middle" font-size="10" font-weight="700" fill="#5F5E66" font-family="Manrope,sans-serif">heute</text></svg>`;
+  const rows = [3, 6, 12, 24].map(m => { const k = addMonths(pj.last.date, m); const v = pj.start + rate * m; return `<div class="row" style="min-height:42px"><span class="grow"><span class="name">${MON[P(k).getMonth()]} ${P(k).getFullYear()}</span><span class="muted">in ${m} Monaten</span></span><span style="font-size:15px;font-weight:800">${money(v)}</span></div>`; }).join("");
+  return `<div class="card">
+    <div class="head"><h2>Wo du landen könntest</h2></div>
+    <span class="muted">Ø Zuwachs ohne Rendite ${pj.n === 1 ? "im letzten Monat" : `der letzten <button class="link" style="padding:0;min-height:0;font-size:12px" data-a="avgN">${pj.n} Monate</button>`}: <b>${S.ui.hide ? "•••" : signed(pj.avg)}</b> pro Monat</span>
+    <div class="seg light">${[[0, "wie bisher"], [100, "+100 €"], [200, "+200 €"], [300, "+300 €"]].map(([v, l]) => `<button class="${extra === v ? "on" : ""}" data-a="setExtra" data-v="${v}">${l}</button>`).join("")}</div>
+    ${svgC}
+    <div class="tags"><span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--gr)"><span style="width:14px;height:3px;background:#4A4A50"></span>bisher</span><span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--gr)"><span style="width:14px;height:3px;background:#677166"></span>${extra ? `mit ${signed(rate)} pro Monat` : "wenn es so weitergeht"}</span>${extra ? `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--gr)"><span style="width:14px;height:3px;background:#B3BEAE"></span>wie bisher</span>` : ""}</div>
+    <div class="card flat" style="padding:0;background:none">${rows}</div>
+    ${extra ? `<span class="muted">Mit ${eur0(extra)} mehr pro Monat hättest du nach 12 Monaten ${S.ui.hide ? "•••" : eur0(extra * 12)} zusätzlich.</span>` : ""}
+    <span class="muted">Ohne Kursgewinne gerechnet. Was das Depot zusätzlich bringt, kommt obendrauf.</span>
+  </div>`;
+}
+Object.assign(A, {
+  setExtra(d) { S.ui.extra = Number(d.v); render(); },
+  avgN() { S.ui.avgN = Number(S.ui.avgN || 6) === 6 ? 12 : 6; render(); }
 });
 
 document.addEventListener("click", e => {
