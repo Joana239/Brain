@@ -359,11 +359,6 @@ function nav() {
 }
 
 /* ---------- Start ---------- */
-function vStart() {
-  const t = today();
-  const planning = S.ui.planMode ?? (dow(t) === 0);
-  return planning ? vPlanning(t) : vMorning(t);
-}
 function greeting() { const h = new Date().getHours(); return h < 11 ? "Guten Morgen" : h < 18 ? "Hallo" : "Guten Abend"; }
 function dayCell(k, t, extra = "") {
   return `<button class="dayc ${k === t ? "today" : ""}" data-a="day" data-k="${k}" aria-label="${longDate(k)}"><span class="wd">${WD[dow(k)]}</span><span class="dn">${P(k).getDate()}</span>${pill(k)}<span class="ex">${extra}</span></button>`;
@@ -385,6 +380,9 @@ function vMorning(t) {
   return `<div class="top"><div><div class="date">${longDate(t)}</div><h1>${greeting()}${firstName() ? ", " + esc(firstName()) : ""}</h1></div>
   <button class="x" data-a="settings" aria-label="Einstellungen" style="width:44px;height:44px">${svg("gear", 22)}</button></div>
 <div class="main">
+  ${modeSwitch("morning")}
+  ${weatherCard(t)}
+  ${(() => { const s2 = shopInfo(t); return s2 && add(s2.s, -1) === t ? `<button class="hint" style="flex-direction:row;align-items:center;text-align:left;cursor:pointer" data-a="startMode" data-v="shop"><span class="grow"><b>Morgen ist Einkaufstag</b><span>Gerichte wählen, Basics und Vorrat prüfen, Liste erstellen.</span></span><span class="btn small" style="background:var(--apriD);display:flex;align-items:center">Vorbereiten</span></button>` : ""; })()}
   <div class="card">
     <div class="head"><h2>${isOwner ? status : (ownerName() ? ownerName() + ": " : "") + status.replace("Heute: ", "")}</h2></div>
     <div class="strip">${[0, 1, 2, 3, 4].map(i => { const k = add(t, i); return dayCell(k, t, dayExtra(k)); }).join("")}</div>
@@ -407,50 +405,8 @@ function vMorning(t) {
     <button class="btn small ghost" style="min-height:46px;border-color:var(--plumT);color:var(--plum)" data-a="quick" data-v="event">+ Termin</button>
     <button class="btn small ghost" style="min-height:46px;border-color:#C9C9CE;color:var(--anth)" data-a="quick" data-v="money">+ Ausgabe</button>
   </div>
-  <button class="btn dark" data-a="planMode" data-v="1">Woche planen</button>
 </div>`;
 }
-function vPlanning(t) {
-  const start = add(t, 1);
-  const ks = [0, 1, 2, 3, 4, 5, 6].map(i => add(start, i));
-  const sh = shopInfo(t);
-  const notes = ks.filter(k => S.days[k]?.early || S.days[k]?.noCar || evEarly(k) || evCar(k) || busy(k)).map(k => {
-    const d = S.days[k] || {}; const parts = [];
-    if (d.early || evEarly(k)) parts.push("früher Termin, Gym rückt nach");
-    if (d.noCar || evCar(k)) parts.push("Auto weg");
-    if (busy(k)) parts.push("voller Tag, lieber schnell kochen");
-    return `<span><b>${short(k)}</b> ${parts.join(", ")}</span>`;
-  });
-  let planned = 0, win = [];
-  if (sh) { win = Array.from({ length: sh.n }, (_, i) => add(sh.s, i)); planned = win.filter(k => S.plan[k]).length; }
-  const gen = sh && S.settings.lastGen === sh.s;
-  const step = (n, title, sub, state, act) => `<button class="step" ${act}><span class="dot ${state}">${state === "done" ? "✓" : n}</span><span class="grow"><span class="name" style="font-weight:800">${title}</span><span class="muted">${sub}</span></span></button>`;
-  const s2 = sh && planned >= sh.n ? "done" : "now";
-  return `<div class="top"><div><div class="date">${longDate(t)}</div><h1>Deine Woche planen</h1></div>
-  <button class="x" data-a="settings" aria-label="Einstellungen" style="width:44px;height:44px">${svg("gear", 22)}</button></div>
-<div class="main">
-  <div class="card" style="padding:12px 8px">
-    <div class="head" style="padding:0 8px"><h2>${P(ks[0]).getDate()}. – ${P(ks[6]).getDate()}. ${MON[P(ks[6]).getMonth()]}</h2><span class="muted">Tag antippen</span></div>
-    <div class="strip">${ks.map(k => dayCell(k, t, dayExtra(k))).join("")}</div>
-  </div>
-  ${notes.length ? `<div class="hint"><b>Berücksichtigt</b>${notes.join("")}</div>` : ""}
-  ${sh ? `<div class="card" style="background:var(--green);color:#fff">
-    <span style="font-size:12px;font-weight:700">Einkauf ${longDate(sh.s)}</span>
-    <span style="font-size:20px;font-weight:800;line-height:1.25">Essen für ${sh.n} Tage, bis zum nächsten Einkauf am ${short(sh.nxt)}</span>
-    <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700"><span>Gerichte geplant</span><span>${planned} von ${sh.n}</span></div>
-    <div class="bar8"><span style="width:${Math.min(100, Math.round(planned / sh.n * 100))}%"></span></div>
-  </div>` : ""}
-  <div class="card" style="gap:0;padding:6px 16px">
-    ${step(1, "Woche prüfen", "Frühe Termine und Auto weg eintragen", "done", 'data-a="noop"')}
-    ${step(2, "Gerichte wählen", sh ? `${planned} von ${sh.n} Tagen geplant` : "", s2, 'data-a="go" data-tab="kueche" data-k="woche"')}
-    ${step(3, "Basics prüfen", "Was ist noch da?", s2 === "done" ? "now" : "", 'data-a="go" data-tab="kueche" data-k="basics"')}
-    ${step(4, "Einkaufsliste erstellen", gen ? "Erstellt, bei Änderungen einfach neu erstellen" : "Basics und Rezepte zusammenführen", gen ? "done" : "", 'data-a="gen"')}
-    ${step(5, "Einkaufsliste ansehen", `${S.shopping.filter(i => !i.done).length} Artikel offen`, "", 'data-a="go" data-tab="kueche" data-k="einkauf"')}
-  </div>
-  <button class="btn ghost" data-a="planMode" data-v="0">Zum Morgen-Check</button>
-</div>`;
-}
-
 /* ---------- Küche ---------- */
 function vKueche() {
   if (S.ui.form) return vEdit();
@@ -593,6 +549,7 @@ function vSheet() {
   else if (sh.type === "recap") inner = sRecap(sh.id);
   else if (sh.type === "year") inner = sYear(sh.id);
   else if (sh.type === "recaps") inner = sRecaps();
+  else if (sh.type === "todorecap") inner = sTodoRecap();
   return `<div class="sheet-bg" data-a="closeSheet"><div class="sheet" role="dialog" aria-modal="true" data-stop="1"><div class="grab"></div>${inner}</div></div>`;
 }
 function segPick(name, val, opts) { return `<div class="seg light">${opts.map(([v, l]) => `<button class="${(val ?? "") === v ? "on" : ""}" data-a="dayset" data-f="${name}" data-v="${v}">${l}</button>`).join("")}</div>`; }
@@ -663,6 +620,12 @@ function sSettings() {
     <label class="fl">An dem Tag war<select id="sPos" data-bind="f.anchorPos">${[["0", "Gym, Tag 1"], ["1", "Gym, Tag 2"], ["2", "frei"]].map(([v, l]) => `<option value="${v}" ${String(F.anchorPos) === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
     <label class="fl">Nächster fester Einkaufstag<input id="sShop" type="date" data-bind="f.firstShop" value="${esc(F.firstShop || "")}"></label>
     <button class="btn" data-a="saveSettings">Speichern</button>
+  </div>
+  <div class="card">
+    <h2>Wetter</h2>
+    <span class="muted">${S.prefs?.weather ? "Aktuell: " + esc(S.prefs.weather.name) : "Noch kein Ort festgelegt."}</span>
+    <div class="addrow"><input id="wCity" type="text" placeholder="Stadt, z. B. Köln" data-bind="f.wcity" value="${esc(S.ui.f.wcity || "")}" aria-label="Stadt für das Wetter"><button class="btn small" style="min-height:46px" data-a="weatherCity">Speichern</button></div>
+    <button class="btn ghost" data-a="weatherGeo">Meinen Standort verwenden</button>
   </div>
   <div class="card">
     <h2>Rezepte und Listen importieren</h2>
@@ -738,7 +701,7 @@ const A = {
   },
   ktab(d) { S.ktab = d.id; render(); },
   go(d) { S.tab = d.tab; if (d.k) S.ktab = d.k; S.ui.recipeId = null; S.ui.form = null; render(); scrollTo(0, 0); },
-  planMode(d) { S.ui.planMode = d.v === "1"; render(); scrollTo(0, 0); },
+  planMode(d) { S.ui.startMode = d.v === "1" ? "week" : "morning"; render(); scrollTo(0, 0); },
   noop() {},
   quick(d) {
     if (d.v === "todo") { S.tab = "todos"; render(); A.editT({}); }
@@ -970,32 +933,6 @@ const myTodos = () => S.todos.filter(x => x.owner === me());
 const doneOn = k => myTodos().filter(x => x.done && x.doneAt && K(new Date(x.doneAt)) === k);
 function streak() { let k = today(), n = 0; if (doneOn(k).length < GOAL) k = add(k, -1); while (doneOn(k).length >= GOAL && n < 400) { n++; k = add(k, -1); } return n; }
 const openSorted = () => myTodos().filter(x => !x.done && x.list !== "langzeit").sort((a, b) => (a.list === "dringend" ? 0 : 1) - (b.list === "dringend" ? 0 : 1) || (a.due || "9").localeCompare(b.due || "9") || ((a.later || a.created || 0) - (b.later || b.created || 0)));
-function vTodos() {
-  const t = today(); const ws = weekStart(t); const open = openSorted(); const cur = open[0]; const next = open.slice(1, 6);
-  const done = doneOn(t).sort((a, b) => a.doneAt - b.doneAt); const st = streak();
-  const goals = myTodos().filter(x => x.list === "langzeit" && !x.done);
-  const fromMe = S.todos.filter(x => x.from === me() && x.owner !== me()).sort((a, b) => (a.done - b.done) || (b.created - a.created)).slice(0, 8);
-  const days = Array.from({ length: 7 }, (_, i) => add(ws, i));
-  return `<div class="hero" style="background:var(--lilac);color:var(--tx)">
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h1>To-dos</h1><span style="display:flex;align-items:center;gap:8px"><span class="tag" style="background:rgba(255,255,255,.55);color:var(--tx);font-size:12px;padding:5px 10px">${st} ${st === 1 ? "Tag" : "Tage"} am Stück</span><button class="btn small" style="background:var(--lilacD);min-height:44px;padding:0 14px;font-size:14px" data-a="editT" aria-label="Neues To-do">+ Neu</button></span></div>
-  <div class="strip">${days.map(k => { const ok = doneOn(k).length >= GOAL; return `<span style="height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;background:${ok ? "#fff" : "rgba(255,255,255,.35)"};color:${ok ? "var(--lilacD)" : "var(--tx)"};${k === t ? "outline:2px solid var(--tx)" : ""}">${WD[dow(k)]}</span>`; }).join("")}</div>
-  <span style="font-size:12px;font-weight:700">Heute ${Math.min(done.length, GOAL)} von ${GOAL} fürs Tagesziel</span>
-</div>
-<div class="main">
-  ${cur ? `<div class="card" style="padding:18px;gap:12px;border-radius:24px">
-    <div class="head"><span class="muted" style="font-weight:800;color:var(--lilacD)">Jetzt dran</span><span class="tag" style="background:${CATC[cur.cat]?.[1] || "var(--bg)"};color:${CATC[cur.cat]?.[0] || "var(--gr)"}">${esc(cur.cat || "")}</span></div>
-    <span style="font-size:20px;font-weight:800;line-height:1.25">${esc(cur.title)}</span>
-    <span class="muted">${cur.due ? "Fällig " + short(cur.due) : LISTS.find(l => l[0] === cur.list)?.[1] || ""}${cur.from !== me() ? " · von " + esc(nameOf(cur.from)) : ""}</span>
-    <div class="grid2"><button class="btn ghost" style="border-color:var(--line);color:var(--tx)" data-a="later" data-id="${cur.id}">Später</button><button class="btn" style="background:var(--lilacD)" data-a="doneT" data-id="${cur.id}">Erledigt</button></div>
-  </div>` : `<div class="card"><span class="empty">Alles erledigt. Leg ein neues To-do an, wenn dir etwas einfällt.</span></div>`}
-  ${next.length ? `<h2 style="padding:0 4px">Als Nächstes</h2><div class="chips" style="gap:10px">${next.map(x => `<button style="flex:0 0 150px;background:#fff;border:0;border-top:4px solid ${CATC[x.cat]?.[0] || "var(--lilac)"};border-radius:18px;padding:12px;text-align:left;display:flex;flex-direction:column;gap:6px;min-height:96px" data-a="editT" data-id="${x.id}"><span class="muted" style="font-weight:800">${esc(x.cat || "")}</span><span class="name" style="line-height:1.3">${esc(x.title)}</span></button>`).join("")}</div>` : ""}
-  <div class="grid2">${CATS.map(c => { const all = myTodos().filter(x => x.cat === c && x.list !== "langzeit"); const o = all.filter(x => !x.done).length; const pct = all.length ? Math.round((all.length - o) / all.length * 100) : 0; return `<button class="card" style="border:0;text-align:left;gap:8px" data-a="catT" data-id="${c}"><span class="head" style="width:100%"><span class="name" style="font-weight:800">${c}</span><span class="tag" style="background:${CATC[c][0]};color:#fff">${o}</span></span><span class="muted">${o} offen</span><span style="height:6px;border-radius:3px;background:${CATC[c][1]};display:flex;width:100%"><span style="width:${pct}%;background:${CATC[c][0]};border-radius:3px"></span></span></button>`; }).join("")}</div>
-  ${goals.length ? `<div class="card"><h2>Langzeit-Ziele</h2>${goals.map(g => { const s = g.steps || []; const d = s.filter(x => x.done).length; const pct = s.length ? Math.round(d / s.length * 100) : 0; return `<button style="border:0;background:none;text-align:left;padding:4px 0;display:flex;flex-direction:column;gap:6px" data-a="editT" data-id="${g.id}"><span style="display:flex;justify-content:space-between;width:100%;font-size:13px;font-weight:700"><span>${esc(g.title)}</span><span class="muted">${d}/${s.length}</span></span><span style="height:8px;border-radius:4px;background:var(--lilacT);display:flex;width:100%"><span style="width:${pct}%;background:var(--lilacD);border-radius:4px"></span></span></button>`; }).join("")}</div>` : ""}
-  ${done.length ? `<div class="card flat"><div class="row" style="min-height:40px"><h2>Heute erledigt</h2></div>${done.map(x => `<div class="row" style="min-height:40px"><span style="width:44px;font-size:12px;font-weight:800;color:var(--gr)">${pad(new Date(x.doneAt).getHours())}:${pad(new Date(x.doneAt).getMinutes())}</span><span class="grow"><span class="name" style="font-weight:600">${esc(x.title)}</span></span><button class="link" data-a="undoT" data-id="${x.id}">Zurück</button></div>`).join("")}</div>` : ""}
-  ${fromMe.length ? `<div class="card flat"><div class="row" style="min-height:40px"><h2>Von dir für ${esc(partnerName())}</h2></div>${fromMe.map(x => `<div class="row" style="min-height:40px"><span class="grow"><span class="name" style="font-weight:600">${esc(x.title)}</span></span><span class="muted" style="font-weight:700;color:${x.done ? "var(--green)" : "var(--gr)"}">${x.done ? "erledigt" : "offen"}</span><button class="x" data-a="delT" data-id="${x.id}" aria-label="Löschen">×</button></div>`).join("")}</div>` : ""}
-  <button class="btn ghost" style="border-color:var(--lilacD);color:var(--lilacD)" data-a="allT">Alle To-dos anzeigen</button>
-</div>`;
-}
 function sTodoList() {
   const F = S.ui.sheet; const cat = F.cat; const lst = S.ui.f.list || "dringend";
   const items = myTodos().filter(x => (cat ? x.cat === cat : x.list === lst) && !x.done).sort((a, b) => (a.due || "9").localeCompare(b.due || "9"));
@@ -1120,6 +1057,7 @@ function vPrivat() {
   ${last ? `<div class="card flat">${ACC.map(([k, l]) => `<div class="row" style="min-height:42px"><span class="grow"><span class="name">${esc(accLabel(k, l))}</span></span><span style="font-size:14px;font-weight:800">${money(Number(last[k]) || 0)}</span></div>`).join("")}</div>
   <div class="grid2"><div class="card" style="gap:4px"><span class="muted" style="font-weight:800">Depot</span><span style="font-size:17px;font-weight:800">${S.ui.hide ? "•••" : (dep >= 0 ? "+" : "") + eur(dep)}</span><span class="muted">${Number(last.investiert) ? (dep / Number(last.investiert) * 100).toFixed(1).replace(".", ",") + " % Rendite" : ""}</span></div>
   <div class="card" style="gap:4px"><span class="muted" style="font-weight:800">Zuwachs pro Monat</span><span style="font-size:17px;font-weight:800;color:${pj && pj.avg >= 0 ? "var(--greenD)" : "#9A3E31"}">${pj ? (S.ui.hide ? "•••" : signed(pj.avg)) : "–"}</span><span class="muted">${pj ? (pj.n === 1 ? "letzter Monat" : "Ø " + pj.n + " Monate") : ""}</span></div></div>
+  ${vHistory(ms)}
   ${pj ? vProjection(pj) : ""}` : ""}
   ${!due && last ? `<button class="btn ghost" style="border-color:var(--anth);color:var(--anth)" data-a="monthCheck">Monats-Check vom ${short(last.date)} bearbeiten</button>` : ""}
   <div class="grid2"><button class="btn" style="background:var(--anth)" data-a="exportFin">Excel herunterladen</button><button class="btn ghost" style="border-color:var(--anth);color:var(--anth)" data-a="recaps">Recaps</button></div>
@@ -1518,6 +1456,244 @@ Object.assign(A, {
   avgN(d) { S.ui.avgN = Number(d.v) || 1; render(); }
 });
 
+/* ========== Startseiten-Modi ========== */
+function startMode(t) {
+  if (S.ui.startMode) return S.ui.startMode;
+  const sh = shopInfo(t);
+  if (sh && add(sh.s, -1) === t) return "shop";
+  if (dow(t) === 0) return "week";
+  return "morning";
+}
+function vStart() {
+  const t = today(); const m = startMode(t);
+  return m === "shop" ? vShopPrep(t) : m === "week" ? vWeekPlan(t) : vMorning(t);
+}
+function topBar(t, title) {
+  return `<div class="top"><div><div class="date">${longDate(t)}</div><h1>${title}</h1></div>
+  <button class="x" data-a="settings" aria-label="Einstellungen" style="width:44px;height:44px">${svg("gear", 22)}</button></div>`;
+}
+function modeSwitch(cur) {
+  const opts = [["morning", "Heute"], ["week", "Woche"], ["shop", "Einkauf"]];
+  return `<div class="seg light" style="background:#fff">${opts.map(([v, l]) => `<button class="${cur === v ? "on" : ""}" style="${cur === v ? "background:var(--tx);color:#fff" : ""}" data-a="startMode" data-v="${v}">${l}</button>`).join("")}</div>`;
+}
+const stepBtn = (n, title, sub, state, act) => `<button class="step" ${act}><span class="dot ${state}">${state === "done" ? "✓" : n}</span><span class="grow"><span class="name" style="font-weight:800">${title}</span><span class="muted">${sub}</span></span><span style="color:var(--gr)">›</span></button>`;
+function vWeekPlan(t) {
+  const start = add(t, 1); const ks = Array.from({ length: 7 }, (_, i) => add(start, i));
+  const notes = ks.filter(k => S.days[k]?.early || S.days[k]?.noCar || evEarly(k) || evCar(k) || busy(k)).map(k => {
+    const d = S.days[k] || {}; const parts = [];
+    if (d.early || evEarly(k)) parts.push("früher Termin, Gym rückt nach");
+    if (d.noCar || evCar(k)) parts.push("Auto weg");
+    if (busy(k)) parts.push("voller Tag");
+    return `<span><b>${short(k)}</b> ${parts.join(", ")}</span>`;
+  });
+  const sh = shopInfo(t); const evs = ks.flatMap(k => evOn(k));
+  const openWeek = myTodos().filter(x => !x.done && (x.list === "woche" || x.list === "dringend")).length;
+  return topBar(t, "Deine Woche") + `<div class="main">
+  ${modeSwitch("week")}
+  <div class="card" style="padding:12px 8px">
+    <div class="head" style="padding:0 8px"><h2>${P(ks[0]).getDate()}. – ${P(ks[6]).getDate()}. ${MON[P(ks[6]).getMonth()]}</h2><span class="muted">Tag antippen</span></div>
+    <div class="strip">${ks.map(k => dayCell(k, t, dayExtra(k))).join("")}</div>
+  </div>
+  ${weatherWeek(ks, sh)}
+  ${notes.length ? `<div class="hint"><b>Berücksichtigt</b>${notes.join("")}</div>` : ""}
+  ${sh ? `<div class="card" style="flex-direction:row;align-items:center;gap:12px"><span class="pill shop inl" style="font-size:12px">Einkauf</span><span class="grow"><span class="name">${longDate(sh.s)}</span><span class="muted">Die Vorbereitung erscheint am ${WDL[dow(add(sh.s, -1))]} auf der Startseite.</span></span></div>` : ""}
+  <div class="card" style="gap:0;padding:6px 16px">
+    ${stepBtn(1, "Tage prüfen", "Frühe Termine und Auto weg eintragen", "done", 'data-a="noop"')}
+    ${stepBtn(2, "Termine der Woche", `${evs.length} ${evs.length === 1 ? "Termin" : "Termine"} eingetragen`, "", 'data-a="go" data-tab="kalender"')}
+    ${stepBtn(3, "To-dos für die Woche", `${openWeek} offen`, "", 'data-a="go" data-tab="todos"')}
+  </div>
+</div>`;
+}
+function vShopPrep(t) {
+  const sh = shopInfo(t);
+  if (!sh) return topBar(t, "Einkauf vorbereiten") + `<div class="main">${modeSwitch("shop")}<div class="card"><span class="empty">Lege in den Einstellungen deinen nächsten Einkaufstag fest.</span></div></div>`;
+  const win = Array.from({ length: sh.n }, (_, i) => add(sh.s, i)); const planned = win.filter(k => S.plan[k]).length;
+  const gen = S.settings.lastGen === sh.s; const empties = S.pantry.filter(p => p.empty).length; const have = S.basics.filter(b => b.have).length;
+  const isTomorrow = add(sh.s, -1) === t;
+  return topBar(t, "Einkauf vorbereiten") + `<div class="main">
+  ${modeSwitch("shop")}
+  <div class="card" style="background:var(--green);color:#fff">
+    <span style="font-size:12px;font-weight:700">${isTomorrow ? "Morgen" : sh.s === t ? "Heute" : longDate(sh.s)}: Einkauf</span>
+    <span style="font-size:20px;font-weight:800;line-height:1.25">Essen für ${sh.n} Tage, bis zum nächsten Einkauf am ${short(sh.nxt)}</span>
+    <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700"><span>Gerichte geplant</span><span>${planned} von ${sh.n}</span></div>
+    <div class="bar8"><span style="width:${Math.min(100, Math.round(planned / sh.n * 100))}%"></span></div>
+  </div>
+  ${weatherShopHint(sh.s)}
+  <div class="card" style="gap:0;padding:6px 16px">
+    ${stepBtn(1, "Reste prüfen", `${S.leftovers.length} im Kühlschrank eingetragen`, "", 'data-a="go" data-tab="kueche" data-k="woche"')}
+    ${stepBtn(2, "Gerichte wählen", `${planned} von ${sh.n} Tagen geplant`, planned >= sh.n ? "done" : "now", 'data-a="go" data-tab="kueche" data-k="woche"')}
+    ${stepBtn(3, "Basics prüfen", have ? `${have} als „noch da“ markiert` : "Was ist noch da?", "", 'data-a="go" data-tab="kueche" data-k="basics"')}
+    ${stepBtn(4, "Vorrat prüfen", empties ? `${empties} als leer markiert` : "Was ist leer?", "", 'data-a="go" data-tab="kueche" data-k="vorrat"')}
+    ${stepBtn(5, "Einkaufsliste erstellen", gen ? "Erstellt, bei Änderungen neu erstellen" : "Basics und Rezepte zusammenführen", gen ? "done" : "", 'data-a="gen"')}
+    ${stepBtn(6, "Einkaufsliste ansehen", `${S.shopping.filter(i => !i.done).length} Artikel offen`, "", 'data-a="go" data-tab="kueche" data-k="einkauf"')}
+  </div>
+</div>`;
+}
+
+/* ========== Wetter ========== */
+const WMO = c => c === 0 ? ["sun", "klar"] : c <= 2 ? ["pc", "heiter bis wolkig"] : c === 3 ? ["cloud", "bewölkt"] : c <= 48 ? ["cloud", "neblig"] : c <= 67 ? ["rain", "Regen"] : c <= 77 ? ["snow", "Schnee"] : c <= 82 ? ["rain", "Schauer"] : ["rain", "Gewitter"];
+function wIcon(kind, sz = 28) {
+  const cl = '<path d="M7 18h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.6A3.2 3.2 0 0 0 7 18z" fill="#fff" stroke="#5F5E66" stroke-width="1.4"/>';
+  const b = { sun: '<circle cx="12" cy="12" r="4.8" fill="#D8C0B4"/>', pc: '<circle cx="9" cy="9" r="3.6" fill="#D8C0B4"/><path d="M9 19h9a3.5 3.5 0 0 0 0-7 4.8 4.8 0 0 0-9.2 1.4A2.8 2.8 0 0 0 9 19z" fill="#fff" stroke="#5F5E66" stroke-width="1.4"/>', cloud: cl,
+    rain: '<path d="M7 15h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.6A3.2 3.2 0 0 0 7 15z" fill="#fff" stroke="#5F5E66" stroke-width="1.4"/><path d="M9 18l-1 3M13 18l-1 3M17 18l-1 3" stroke="#5B5068" stroke-width="1.8" stroke-linecap="round"/>',
+    snow: '<path d="M7 15h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.6A3.2 3.2 0 0 0 7 15z" fill="#fff" stroke="#5F5E66" stroke-width="1.4"/><circle cx="9" cy="19" r="1" fill="#5B5068"/><circle cx="13" cy="20" r="1" fill="#5B5068"/><circle cx="17" cy="19" r="1" fill="#5B5068"/>' }[kind];
+  return `<svg width="${sz}" height="${sz}" viewBox="0 0 24 24" aria-hidden="true">${b}</svg>`;
+}
+const W = { data: null, ts: 0, key: "", busy: false };
+async function loadWeather(force) {
+  const loc = S.prefs?.weather; if (!loc || W.busy) return;
+  const key = `${loc.lat},${loc.lon}`;
+  if (!force && W.data && W.key === key && Date.now() - W.ts < 30 * 60 * 1000) return;
+  W.busy = true;
+  try {
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&current=temperature_2m,weather_code&hourly=temperature_2m,precipitation_probability,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FBerlin&forecast_days=8`;
+    const r = await fetch(u); if (!r.ok) throw new Error(r.status);
+    W.data = await r.json(); W.ts = Date.now(); W.key = key; W.err = false;
+  } catch (e) { W.err = true; }
+  W.busy = false; schedule();
+}
+function wHours(k) { const d = W.data; if (!d) return []; return d.hourly.time.map((tm, i) => ({ k: tm.slice(0, 10), h: Number(tm.slice(11, 13)), t: d.hourly.temperature_2m[i], p: d.hourly.precipitation_probability[i] ?? 0, c: d.hourly.weather_code[i] })).filter(x => x.k === k); }
+function wDay(k) { const d = W.data; if (!d) return null; const i = d.daily.time.indexOf(k); if (i < 0) return null; return { c: d.daily.weather_code[i], hi: d.daily.temperature_2m_max[i], lo: d.daily.temperature_2m_min[i], p: d.daily.precipitation_probability_max[i] ?? 0 }; }
+function weatherCard(t) {
+  if (!S.prefs?.weather) return `<button class="card" style="border:0;flex-direction:row;align-items:center;text-align:left" data-a="settings">${wIcon("pc", 34)}<span class="grow"><span class="name">Wetter anzeigen</span><span class="muted">Ort in den Einstellungen festlegen</span></span><span>›</span></button>`;
+  loadWeather();
+  if (!W.data) return `<div class="card"><span class="muted">${W.err ? "Wetter gerade nicht erreichbar." : "Wetter lädt …"}</span></div>`;
+  const nowH = new Date().getHours(); const hrs = wHours(t); const day = wDay(t); const [ic, txt] = WMO(W.data.current.weather_code);
+  const sH = Math.min(20, Math.max(6, nowH)); const strip = hrs.filter(x => x.h >= sH && x.h <= 22 && (x.h - sH) % 2 === 0).slice(0, 8);
+  const rainFrom = hrs.find(x => x.h >= nowH && x.h <= 22 && x.p >= 50);
+  const r = rhythm()[t]; const gymMorningRain = owner() === me() && r?.s === "gym" && nowH < 10 && hrs.filter(x => x.h >= 6 && x.h <= 9).some(x => x.p >= 50);
+  const hint = gymMorningRain ? "Regen am Morgen, denk für den Weg zum Gym an die Regenjacke." : rainFrom ? (rainFrom.h <= nowH ? "Gerade regnet es wahrscheinlich, Schirm einpacken." : `Ab ${rainFrom.h} Uhr Regen wahrscheinlich, Schirm einpacken.`) : (day && day.p < 20 ? "Heute bleibt es voraussichtlich trocken." : "");
+  return `<div class="card" style="gap:12px">
+    <div style="display:flex;align-items:center;gap:12px">${wIcon(ic, 44)}
+      <div class="grow"><span style="font-size:26px;font-weight:800;line-height:1">${Math.round(W.data.current.temperature_2m)}°</span><span class="muted">${esc(S.prefs.weather.name)} · ${txt}</span></div>
+      ${day ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px"><span style="font-size:13px;font-weight:800">${Math.round(day.hi)}° / ${Math.round(day.lo)}°</span><span style="font-size:12px;font-weight:700;color:${day.p >= 50 ? "var(--lilacD)" : "var(--gr)"}">Regen ${day.p} %</span></div>` : ""}
+    </div>
+    ${strip.length ? `<div style="display:flex;gap:2px">${strip.map(x => `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1"><span style="font-size:11px;font-weight:700;color:var(--gr)">${x.h}</span>${wIcon(WMO(x.c)[0], 22)}<span style="font-size:13px;font-weight:800">${Math.round(x.t)}°</span><span style="width:8px;height:28px;border-radius:4px;background:var(--bg);display:flex;align-items:flex-end"><span style="width:8px;height:${Math.max(2, Math.round(x.p * .28))}px;border-radius:4px;background:${x.p ? "var(--lilac)" : "var(--bg)"}"></span></span><span style="font-size:10px;font-weight:700;color:${x.p >= 50 ? "var(--lilacD)" : "var(--gr)"}">${x.p}%</span></div>`).join("")}</div>` : ""}
+    ${hint ? `<div style="background:var(--apriT);border-radius:12px;padding:9px 12px;font-size:13px;font-weight:700;color:var(--apriD)">${hint}</div>` : ""}
+  </div>`;
+}
+function weatherWeek(ks, sh) {
+  if (!S.prefs?.weather) return "";
+  loadWeather(); if (!W.data) return "";
+  const days = ks.map(k => ({ k, d: wDay(k) })).filter(x => x.d);
+  if (!days.length) return "";
+  return `<div class="card" style="padding:12px 10px;gap:8px"><span class="name" style="font-weight:800;padding:0 6px">Wetter der Woche</span>
+  <div style="display:flex;gap:2px">${days.map(({ k, d }) => `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;border-radius:12px;padding:6px 0;${sh && sh.s === k ? "background:var(--greenT)" : ""}"><span style="font-size:11px;font-weight:700;color:var(--gr)">${WD[dow(k)]}</span>${wIcon(WMO(d.c)[0], 22)}<span style="font-size:12px;font-weight:800">${Math.round(d.hi)}°</span><span style="font-size:10px;font-weight:700;color:${d.p >= 50 ? "var(--lilacD)" : "var(--gr)"}">${d.p}%</span></div>`).join("")}</div></div>`;
+}
+function weatherShopHint(k) {
+  if (!S.prefs?.weather) return ""; loadWeather(); const d = wDay(k); if (!d) return "";
+  const hrs = wHours(k).filter(x => x.h >= 7 && x.h <= 11); const wet = hrs.some(x => x.p >= 50);
+  return `<div class="card" style="flex-direction:row;align-items:center;gap:12px">${wIcon(WMO(d.c)[0], 36)}<span class="grow"><span class="name">Wetter am Einkaufstag</span><span class="muted">${Math.round(d.hi)}° · ${wet ? "morgens Regen wahrscheinlich" : "morgens voraussichtlich trocken"}</span></span></div>`;
+}
+
+/* ========== To-dos: Liste und Recap ========== */
+function doneIn(fromK, toK) { return myTodos().filter(x => x.done && x.doneAt && K(new Date(x.doneAt)) >= fromK && K(new Date(x.doneAt)) <= toK); }
+function todoRow(x) {
+  const cc = CATC[x.cat] || ["var(--gr)", "var(--bg)"];
+  const steps = x.steps || []; const sd = steps.filter(s => s.done).length;
+  const overdue = x.due && x.due < today();
+  return `<div class="row" style="min-height:52px"><input type="checkbox" data-a="chkT" data-id="${x.id}" aria-label="${esc(x.title)} erledigt" style="accent-color:var(--lilacD)">
+  <button class="grow" style="border:0;background:none;text-align:left;padding:6px 0;gap:4px" data-a="editT" data-id="${x.id}"><span class="name">${esc(x.title)}</span>
+  <span class="tags" style="gap:5px"><span class="tag" style="background:${cc[1]};color:${cc[0]}">${esc(x.cat || "")}</span>${x.due ? `<span class="muted" style="font-weight:700;color:${overdue ? "#9A3E31" : "var(--gr)"}">${overdue ? "überfällig · " : ""}${short(x.due)}</span>` : ""}${x.from !== me() ? `<span class="muted">von ${esc(nameOf(x.from))}</span>` : ""}${steps.length ? `<span class="muted">${sd}/${steps.length} Schritte</span>` : ""}</span>
+  ${steps.length ? `<span style="height:5px;border-radius:3px;background:var(--lilacT);display:flex;width:100%"><span style="width:${Math.round(sd / steps.length * 100)}%;background:var(--lilacD);border-radius:3px"></span></span>` : ""}</button></div>`;
+}
+function vTodos() {
+  const t = today(); const ws = weekStart(t); const mk = monthKey(t);
+  const cat = S.ui.tcat || "Alle"; const st = streak();
+  const mine = myTodos().filter(x => !x.done && (cat === "Alle" || x.cat === cat));
+  const sortF = (a, b) => (a.due || "9").localeCompare(b.due || "9") || ((a.created || 0) - (b.created || 0));
+  const groups = LISTS.map(([v, l]) => [l, mine.filter(x => x.list === v).sort(sortF)]).filter(([, l]) => l.length);
+  const dToday = doneOn(t).sort((a, b) => a.doneAt - b.doneAt); const dWeek = doneIn(ws, t); const dMonth = doneIn(mk + "-01", t);
+  const days = Array.from({ length: 7 }, (_, i) => add(ws, i)); const counts = days.map(k => doneOn(k).length); const mx = Math.max(GOAL, ...counts);
+  const fromMe = S.todos.filter(x => x.from === me() && x.owner !== me()).sort((a, b) => (a.done - b.done) || (b.created - a.created)).slice(0, 6);
+  return `<div class="hero" style="background:var(--lilac);color:var(--tx)">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h1>To-dos</h1><span style="display:flex;align-items:center;gap:8px"><span class="tag" style="background:rgba(255,255,255,.55);color:var(--tx);font-size:12px;padding:5px 10px">${st} ${st === 1 ? "Tag" : "Tage"} am Stück</span><button class="btn small" style="background:var(--lilacD);min-height:44px;padding:0 14px;font-size:14px" data-a="editT" aria-label="Neues To-do">+ Neu</button></span></div>
+</div>
+<div class="main">
+  <div class="card" style="gap:12px">
+    <div class="head"><h2>Geschafft</h2><button class="link" style="color:var(--lilacD)" data-a="todoRecap">Recap ansehen</button></div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;text-align:center">
+      ${[["Heute", dToday.length], ["Diese Woche", dWeek.length], [MON[P(t).getMonth()], dMonth.length]].map(([l, n]) => `<div style="background:var(--lilacT);border-radius:14px;padding:10px 4px;display:flex;flex-direction:column;gap:2px"><span style="font-size:24px;font-weight:800;color:var(--lilacD)">${n}</span><span class="muted" style="font-weight:700">${l}</span></div>`).join("")}
+    </div>
+    <div style="display:flex;gap:6px;align-items:flex-end;height:64px">${days.map((k, i) => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="width:100%;max-width:26px;height:${Math.max(4, Math.round(counts[i] / mx * 44))}px;border-radius:6px;background:${counts[i] >= GOAL ? "var(--lilacD)" : counts[i] ? "var(--lilac)" : "var(--bg)"}"></span><span style="font-size:10px;font-weight:${k === t ? 800 : 700};color:${k === t ? "var(--tx)" : "var(--gr)"}">${WD[dow(k)]}</span></div>`).join("")}</div>
+    <span class="muted">Tagesziel ${Math.min(dToday.length, GOAL)} von ${GOAL}${dToday.length >= GOAL ? ", geschafft!" : ""}</span>
+  </div>
+  <div class="chips">${["Alle", ...CATS].map(c => `<button class="chip ${cat === c ? "on" : ""}" style="${cat === c ? "background:var(--lilacD);border-color:var(--lilacD)" : ""}" data-a="tcat" data-id="${c}">${c}</button>`).join("")}</div>
+  ${groups.length ? groups.map(([l, items]) => `<div class="card flat" style="padding:4px 14px"><div class="row" style="min-height:40px;justify-content:space-between"><h2>${l}</h2><span class="tag lilac">${items.length}</span></div>${items.map(todoRow).join("")}</div>`).join("")
+    : `<div class="card"><span class="empty">${cat === "Alle" ? "Alles erledigt. Mit „+ Neu“ legst du ein To-do an." : "In diesem Thema ist nichts offen."}</span></div>`}
+  ${dToday.length ? `<div class="card flat" style="padding:4px 14px"><div class="row" style="min-height:40px"><h2>Heute erledigt</h2></div>${dToday.map(x => `<div class="row" style="min-height:40px"><span style="width:44px;font-size:12px;font-weight:800;color:var(--gr)">${pad(new Date(x.doneAt).getHours())}:${pad(new Date(x.doneAt).getMinutes())}</span><span class="grow"><span class="name faded" style="font-weight:600;text-decoration:line-through">${esc(x.title)}</span></span><button class="link" style="color:var(--lilacD)" data-a="undoT" data-id="${x.id}">Zurück</button></div>`).join("")}</div>` : ""}
+  ${fromMe.length ? `<div class="card flat" style="padding:4px 14px"><div class="row" style="min-height:40px"><h2>Von dir für ${esc(partnerName())}</h2></div>${fromMe.map(x => `<div class="row" style="min-height:40px"><span class="grow"><span class="name" style="font-weight:600">${esc(x.title)}</span></span><span class="muted" style="font-weight:700;color:${x.done ? "var(--green)" : "var(--gr)"}">${x.done ? "erledigt" : "offen"}</span><button class="x" data-a="delT" data-id="${x.id}" aria-label="Löschen">×</button></div>`).join("")}</div>` : ""}
+</div>`;
+}
+function sTodoRecap() {
+  const t = today(); const mk = S.ui.trMonth || monthKey(t); const days = daysIn(mk);
+  const list = myTodos().filter(x => x.done && x.doneAt && monthKey(K(new Date(x.doneAt))) === mk);
+  const per = Array.from({ length: days }, (_, i) => list.filter(x => K(new Date(x.doneAt)) === `${mk}-${pad(i + 1)}`).length);
+  const best = per.reduce((b, v, i) => v > per[b] ? i : b, 0); const mx = Math.max(1, ...per);
+  const goalDays = per.filter(v => v >= GOAL).length;
+  const byCat = CATS.map(c => [c, list.filter(x => x.cat === c).length]).filter(([, n]) => n);
+  const prev = myTodos().filter(x => x.done && x.doneAt && monthKey(K(new Date(x.doneAt))) === prevMonth(mk)).length;
+  return `<div class="head"><h2 style="font-size:18px">To-do-Recap</h2><button class="link" data-a="closeSheet">Schließen</button></div>
+  <div class="head" style="padding:0 2px"><button class="x" data-a="trNav" data-v="-1" aria-label="Voriger Monat">‹</button><h2>${monthName(mk)}</h2><button class="x" data-a="trNav" data-v="1" aria-label="Nächster Monat">›</button></div>
+  <div style="background:var(--lilac);border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:700">Erledigt</span><span style="font-size:38px;font-weight:800;line-height:1">${list.length}</span><span style="font-size:13px;font-weight:600">${prev ? (list.length >= prev ? `${list.length - prev} mehr als im Vormonat` : `${prev - list.length} weniger als im Vormonat`) : "To-dos in diesem Monat"}</span></div>
+  <div class="grid2">${statBox("Tagesziel erreicht", `${goalDays} ${goalDays === 1 ? "Tag" : "Tage"}`, `mindestens ${GOAL} am Tag`, "var(--lilacD)")}${statBox("Stärkster Tag", per[best] ? `${best + 1}. ${MON[Number(mk.slice(5)) - 1].slice(0, 3)}.` : "–", per[best] ? `${per[best]} erledigt` : "")}</div>
+  <div class="card"><h2>Pro Tag</h2><div style="display:flex;gap:2px;align-items:flex-end;height:70px">${per.map(v => `<span style="flex:1;height:${Math.max(2, Math.round(v / mx * 66))}px;border-radius:3px;background:${v >= GOAL ? "var(--lilacD)" : v ? "var(--lilac)" : "var(--bg)"}"></span>`).join("")}</div><div style="display:flex;justify-content:space-between" class="muted"><span>1.</span><span>${days}.</span></div></div>
+  ${byCat.length ? `<div class="card" style="gap:10px"><h2>Nach Thema</h2>${byCat.map(([c, n]) => `<div style="display:flex;flex-direction:column;gap:5px"><span style="display:flex;justify-content:space-between;font-size:13px;font-weight:700"><span>${c}</span><span>${n}</span></span><span style="height:8px;border-radius:4px;background:${CATC[c][1]};display:flex"><span style="width:${Math.round(n / list.length * 100)}%;background:${CATC[c][0]};border-radius:4px"></span></span></div>`).join("")}</div>` : ""}
+  ${list.length ? `<div class="card flat"><div class="row" style="min-height:40px"><h2>Alles, was du geschafft hast</h2></div>${list.sort((a, b) => b.doneAt - a.doneAt).slice(0, 60).map(x => `<div class="row" style="min-height:38px"><span style="width:52px;font-size:12px;font-weight:800;color:var(--gr)">${short(K(new Date(x.doneAt))).slice(3, -3)}</span><span class="grow"><span class="name" style="font-weight:600">${esc(x.title)}</span></span></div>`).join("")}</div>` : `<div class="card"><span class="empty">In diesem Monat ist noch nichts erledigt.</span></div>`}`;
+}
+
+/* ========== Geld: Rückblick ========== */
+function vHistory(ms) {
+  if (ms.length < 2) return "";
+  const view = S.ui.histView || "monate";
+  const head = `<div class="head"><h2>Woher du kommst</h2></div><div class="seg light">${[["monate", "Monate"], ["jahre", "Jahre"]].map(([v, l]) => `<button class="${view === v ? "on" : ""}" data-a="histView" data-v="${v}">${l}</button>`).join("")}</div>`;
+  if (view === "jahre") {
+    const ys = [...new Set(ms.map(m => m.date.slice(0, 4)))].sort();
+    const rows = ys.map(y => { const inY = ms.filter(m => m.date.startsWith(y)); const before = ms.filter(m => m.date < `${y}-01-01`).pop(); const s0 = before || inY[0]; const e = inY[inY.length - 1]; const nM = Math.max(1, ms.indexOf(e) - ms.indexOf(s0)); const g = sumOf(e) - sumOf(s0); return { y, s0, e, g, avg: g / nM, own: exR(e) - exR(s0), partial: !before }; });
+    const total = sumOf(ms[ms.length - 1]) - sumOf(ms[0]);
+    return `<div class="card">${head}
+      ${rows.map(r => `<div style="display:flex;flex-direction:column;gap:4px;padding:8px 0;border-top:1px solid #EEECE8"><span style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:16px;font-weight:800">${r.y}${r.partial ? ` <span class="muted">ab ${MON[P(r.s0.date).getMonth()]}</span>` : ""}</span><span style="font-size:16px;font-weight:800;color:${r.g >= 0 ? "var(--greenD)" : "#9A3E31"}">${S.ui.hide ? "•••" : signed(r.g)}</span></span>
+        <span class="muted">${money(sumOf(r.s0))} → ${money(sumOf(r.e))} · Ø ${S.ui.hide ? "•••" : signed(r.avg)} pro Monat · ${S.ui.hide ? "•••" : signed(r.own)} aus eigener Kraft</span></div>`).join("")}
+      <div class="hint" style="border:0"><b>Seit deinem ersten Eintrag (${MON[P(ms[0].date).getMonth()]} ${P(ms[0].date).getFullYear()})</b><span>${S.ui.hide ? "•••" : signed(total)} insgesamt</span></div></div>`;
+  }
+  const last = ms.slice(-13); const ch = last.slice(1).map((m, i) => ({ k: m.date, v: sumOf(m) - sumOf(last[i]) }));
+  const mx = Math.max(1, ...ch.map(x => Math.abs(x.v))); const avg = ch.reduce((a, x) => a + x.v, 0) / ch.length;
+  const best = ch.reduce((b, x) => x.v > b.v ? x : b, ch[0]);
+  const Wd = 320, H = 130, mid = 62;
+  const bw = (Wd - 8) / ch.length;
+  const bars = ch.map((x, i) => { const h = Math.abs(x.v) / mx * 54; const xx = 4 + i * bw + bw * .18; const w = bw * .64; return `<rect x="${xx.toFixed(1)}" y="${(x.v >= 0 ? mid - h : mid).toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(1, h).toFixed(1)}" rx="3" fill="${x.v >= 0 ? "#677166" : "#B85C4E"}"/><text x="${(xx + w / 2).toFixed(1)}" y="${H - 2}" text-anchor="middle" font-size="9" font-weight="700" fill="#5F5E66" font-family="Manrope,sans-serif">${MON[P(x.k).getMonth()].slice(0, 1)}</text>`; }).join("");
+  const ay = mid - avg / mx * 54;
+  return `<div class="card">${head}
+    <svg width="100%" height="${H}" viewBox="0 0 ${Wd} ${H}" role="img" aria-label="Vermögenszuwachs pro Monat"><line x1="0" x2="${Wd}" y1="${mid}" y2="${mid}" stroke="#D9D5CE" stroke-width="1"/>${bars}<line x1="0" x2="${Wd}" y1="${ay.toFixed(1)}" y2="${ay.toFixed(1)}" stroke="#7A5643" stroke-width="1.5" stroke-dasharray="4 4"/></svg>
+    <span class="muted">Zuwachs pro Monat · gestrichelt der Schnitt: <b>${S.ui.hide ? "•••" : signed(avg)}</b></span>
+    ${best ? `<span class="muted">Bester Monat: ${MON[P(best.k).getMonth()]} ${P(best.k).getFullYear()} mit ${S.ui.hide ? "•••" : signed(best.v)}</span>` : ""}
+  </div>`;
+}
+
+Object.assign(A, {
+  startMode(d) { S.ui.startMode = d.v; render(); scrollTo(0, 0); },
+  tcat(d) { S.ui.tcat = d.id; render(); },
+  todoRecap() { S.ui.trMonth = null; S.ui.sheet = { type: "todorecap" }; render(); },
+  trNav(d) { const mk = S.ui.trMonth || monthKey(today()); const [y, m] = mk.split("-").map(Number); const dt = new Date(y, m - 1 + Number(d.v), 1); S.ui.trMonth = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}`; render(); },
+  histView(d) { S.ui.histView = d.v; render(); },
+  async weatherCity() {
+    const q = (S.ui.f.wcity || "").trim(); if (!q) return toast("Bitte einen Ort eingeben");
+    try {
+      const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=de&countryCode=DE`); const j = await r.json();
+      const g = j.results && j.results[0]; if (!g) return toast("Ort nicht gefunden");
+      await setDoc(doc(db, `users/${me()}/meta/prefs`), { weather: { name: g.name, lat: g.latitude, lon: g.longitude } }, { merge: true });
+      W.data = null; toast(`Wetter für ${g.name} gespeichert`);
+    } catch (e) { toast("Das hat nicht geklappt. Bist du online?"); }
+  },
+  weatherGeo() {
+    if (!navigator.geolocation) return toast("Standort wird hier nicht unterstützt");
+    navigator.geolocation.getCurrentPosition(async p => {
+      await setDoc(doc(db, `users/${me()}/meta/prefs`), { weather: { name: "Mein Standort", lat: Math.round(p.coords.latitude * 100) / 100, lon: Math.round(p.coords.longitude * 100) / 100 } }, { merge: true });
+      W.data = null; toast("Standort für das Wetter gespeichert");
+    }, () => toast("Standort nicht freigegeben"), { timeout: 10000 });
+  }
+});
+
 document.addEventListener("click", e => {
   S.ui.act = Date.now();
   const el = e.target.closest("[data-a]"); if (!el) return;
@@ -1543,7 +1719,7 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape" && S.ui.sheet) { S.ui.sheet = null; render(); return; }
   if (e.key !== "Enter") return;
   const id = e.target.id;
-  const map = { lPw: "login", lEmail: "login", shopName: "addShop", leftName: "addLeft", tStep: "stepAdd" };
+  const map = { lPw: "login", lEmail: "login", shopName: "addShop", leftName: "addLeft", tStep: "stepAdd", wCity: "weatherCity" };
   if (map[id]) { e.preventDefault(); A[map[id]](); }
   if (id === "pickText") { e.preventDefault(); A.setPlanText({ k: S.ui.sheet.k }); }
 });
@@ -1565,6 +1741,7 @@ function subscribe() {
   tsub(query(collection(db, "todos"), where("owner", "==", S.user.uid)), "mine");
   tsub(query(collection(db, "todos"), where("from", "==", S.user.uid)), "from");
   unsubs.push(onSnapshot(collection(db, `users/${S.user.uid}/finance`), snap => { S.fin = snap.docs.map(d => ({ id: d.id, ...d.data() })); schedule(); }, err => console.error("fin", err)));
+  unsubs.push(onSnapshot(doc(db, `users/${S.user.uid}/meta/prefs`), snap => { S.prefs = snap.exists() ? snap.data() : {}; schedule(); }, err => console.error("prefs", err)));
   unsubs.push(onSnapshot(doc(db, `users/${S.user.uid}/meta/private`), snap => { S.privMeta = snap.exists() ? snap.data() : null; S.privLoaded = true; schedule(); }, err => { console.error("priv", err); S.privLoaded = true; }));
   ["plan", "days"].forEach(n => {
     unsubs.push(onSnapshot(C(n), snap => { const m = {}; snap.docs.forEach(d => m[d.id] = d.data()); S[n] = m; schedule(); }, err => console.error(n, err)));
